@@ -1,0 +1,26 @@
+[package]
+name = "gentoo-core"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.71.0"
+authors = ["Luca Barbato <lu_zero@gentoo.org>"]
+license = "MIT"
+description = "Core Gentoo types and utilities for Rust applications"
+repository = "https://github.com/lu-zero/gentoo-core"
+keywords = ["gentoo", "core", "arch", "target"]
+categories = ["development-tools", "os::unix-apis"]
+
+[dependencies]
+thiserror = "1.0"
+serde = { version = "1.0", features = ["derive"], optional = true }
+
+[dev-dependencies]
+serde_json = "1.0"
+
+[features]
+default = []
+serde_support = ["serde"]
+
+[profile.release]
+opt-level = 3
+lto = true
