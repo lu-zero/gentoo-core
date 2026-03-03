@@ -5,6 +5,7 @@
 [![docs.rs](https://docs.rs/gentoo-core/badge.svg)](https://docs.rs/gentoo-core)
 [![LICENSE](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![CI](https://github.com/lu-zero/gentoo-core/actions/workflows/ci.yml/badge.svg)](https://github.com/lu-zero/gentoo-core/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/github/lu-zero/gentoo-core/graph/badge.svg?token=fApuKCrcgU)](https://codecov.io/github/lu-zero/gentoo-core)
 
 Core Gentoo types and utilities for Rust applications.
 
