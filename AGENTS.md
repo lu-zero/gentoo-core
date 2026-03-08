@@ -12,7 +12,7 @@ cargo run --example arch          # Smoke-test the example
 
 ## Architecture
 
-- Core types in individual modules (`arch.rs`, `interner.rs`, `variant.rs`, `error.rs`)
+- Core types in individual modules (e.g. `arch.rs`, `interner.rs`, `variant.rs`, `error.rs`)
 - Modules are private (`mod`, not `pub mod`); public API is flat re-exports in `lib.rs`
 - Focus on minimal, reusable Gentoo-specific functionality
 - Types and their methods are `pub` when part of the public API
@@ -45,9 +45,13 @@ Current dependencies:
 - `ci:` — CI/CD changes
 - `chore:` — maintenance (dependencies, tooling)
 
+Use `{tag}!:` when the commit breaks the API.
+
 ## MSRV
 
-Minimum Supported Rust Version is **1.88** (edition 2024). CI tests against both stable and MSRV. Do not use features that require a newer version without updating `rust-version` in `Cargo.toml` and the CI matrix.
+Minimum Supported Rust Version is **1.88** (edition 2024).
+CI tests against both stable and MSRV.
+Do not use features that require a newer version without updating `rust-version` in `Cargo.toml` and the CI matrix.
 
 ## Gentoo-Specific Considerations
 
