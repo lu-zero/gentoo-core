@@ -25,10 +25,7 @@ use std::str::FromStr;
 /// assert_eq!(variant.to_string(), "amd64-systemd");
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
-#[cfg_attr(
-    feature = "serde_support",
-    derive(serde::Serialize, serde::Deserialize)
-)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Variant {
     /// Variant architecture.
     pub arch: KnownArch,
