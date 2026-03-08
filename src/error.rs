@@ -32,9 +32,11 @@ mod tests {
         assert!(arch_error.to_string().contains("Architecture error"));
 
         let variant_error = Error::VariantError("Invalid variant".to_string());
-        assert!(variant_error
-            .to_string()
-            .contains("Variant configuration error"));
+        assert!(
+            variant_error
+                .to_string()
+                .contains("Variant configuration error")
+        );
 
         let io_error = Error::IoError(std::io::Error::new(
             std::io::ErrorKind::NotFound,
