@@ -11,7 +11,7 @@ keywords = ["gentoo", "core", "arch", "target"]
 categories = ["development-tools", "os::unix-apis"]
 
 [dependencies]
-lasso = { version = "0.7", features = ["multi-threaded"] }
+lasso = { version = "0.7", features = ["multi-threaded"], optional = true }
 thiserror = "1.0"
 serde = { version = "1.0", features = ["derive"], optional = true }
 
@@ -19,7 +19,8 @@ serde = { version = "1.0", features = ["derive"], optional = true }
 serde_json = "1.0"
 
 [features]
-default = []
+default = ["interner"]
+interner = ["dep:lasso"]
 serde = ["dep:serde"]
 
 [profile.release]

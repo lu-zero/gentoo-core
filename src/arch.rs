@@ -5,7 +5,11 @@ use std::hash::Hash;
 use std::str::FromStr;
 
 use crate::Error;
-use crate::interner::{ArchInterner, GlobalArchInterner};
+#[cfg(feature = "interner")]
+use crate::interner::GlobalInterner;
+#[cfg(not(feature = "interner"))]
+use crate::interner::NoInterner;
+use crate::interner::{DefaultInterner, Interner};
 
 /// Well-known Gentoo CPU architecture variant.
 ///
@@ -21,10 +25,7 @@ use crate::interner::{ArchInterner, GlobalArchInterner};
 /// assert_eq!(arch.as_keyword(), "amd64");
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[cfg_attr(
-    feature = "serde",
-    derive(serde::Serialize, serde::Deserialize)
-)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum KnownArch {
     Arm,
     AArch64,
@@ -158,11 +159,14 @@ impl FromStr for KnownArch {
 
 // ── Generic Arch<K> ──────────────────────────────────────────────────────────
 
-/// Opaque key for an overlay-defined architecture keyword.
+/// Opaque key for an overlay-defined keyword string.
 ///
 /// Wraps the interner's native key type `K`. The inner value is private so
 /// the interner stays an implementation detail; only the owning interner (via
 /// [`Arch::resolve_with`] or [`Arch::as_str`]) can turn it back into a string.
+///
+/// `ExoticKey<K>` is `Copy` when `K: Copy` (e.g. `u32` with [`GlobalInterner`])
+/// and `Clone`-only otherwise (e.g. `Box<str>` with [`NoInterner`](crate::NoInterner)).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ExoticKey<K>(K);
 
@@ -170,24 +174,28 @@ pub struct ExoticKey<K>(K);
 ///
 /// `Known` maps to [`KnownArch`] (zero-cost, `Copy`).
 /// `Exotic` holds an [`ExoticKey<K>`] that must be resolved via the same
-/// [`ArchInterner`] that created it.
+/// [`Interner`] that created it.
 ///
-/// The default key type `K = u32` matches [`GlobalArchInterner`]; callers
-/// using a custom interner supply their own `K`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Arch<K = u32>
+/// With the `interner` feature (default) the key type `K` defaults to `u32`
+/// (backed by [`GlobalInterner`]). Without the feature it defaults to
+/// `Box<str>` (backed by [`NoInterner`](crate::NoInterner)).
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum Arch<I = DefaultInterner>
 where
-    K: Copy + Eq + Hash,
+    I: Interner,
 {
     /// A well-known Gentoo architecture keyword.
     Known(KnownArch),
-    /// An overlay-defined architecture keyword interned in `K`-keyed storage.
-    Exotic(ExoticKey<K>),
+    /// An overlay-defined keyword string interned in `K`-keyed storage.
+    Exotic(ExoticKey<<I as Interner>::Key>),
 }
 
-impl<K: Copy + Eq + Hash> Arch<K> {
+impl<I> Arch<I>
+where
+    I: Interner,
+{
     /// Intern `keyword` using `interner`.
-    pub fn intern_with(keyword: &str, interner: &impl ArchInterner<Key = K>) -> Self {
+    pub fn intern_with(keyword: &str, interner: &I) -> Self {
         if let Ok(known) = KnownArch::parse(keyword) {
             Self::Known(known)
         } else {
@@ -198,61 +206,91 @@ impl<K: Copy + Eq + Hash> Arch<K> {
     /// Extract the CPU arch from a GNU CHOST triple using `interner`.
     ///
     /// Returns `None` only when `chost` is empty.
-    pub fn from_chost_with(chost: &str, interner: &impl ArchInterner<Key = K>) -> Option<Self> {
+    pub fn from_chost_with(chost: &str, interner: &I) -> Option<Self> {
         let cpu = chost.split('-').next().filter(|s| !s.is_empty())?;
         Some(Self::intern_with(&normalize_chost_cpu(cpu), interner))
     }
 
     /// Resolve to the Gentoo keyword string using `interner`.
-    pub fn resolve_with<'a>(&self, interner: &'a impl ArchInterner<Key = K>) -> &'a str {
+    ///
+    /// The returned lifetime is tied to both `self` (for [`KnownArch`] static
+    /// strings) and to `interner`/`key` (for exotic strings).
+    pub fn resolve_with<'a>(&'a self, interner: &'a I) -> &'a str {
         match self {
             Self::Known(arch) => arch.as_keyword(),
-            Self::Exotic(ExoticKey(key)) => interner.resolve(*key),
+            Self::Exotic(ExoticKey(key)) => interner.resolve(key),
         }
     }
 }
 
-/// Convenience methods using the global [`GlobalArchInterner`] (`K = u32`).
-impl Arch<u32> {
+/// Convenience methods on `Arch<DefaultInterner>`.
+///
+/// `intern` and `from_chost` live here (not on a generic `impl<I>`) so that
+/// `Arch::intern(...)` resolves unambiguously via the default type parameter.
+/// `as_str` must also be concrete because `resolve_with` borrows the interner
+/// and a generic `I::default()` temporary cannot outlive the call.
+#[cfg(feature = "interner")]
+impl Arch<GlobalInterner> {
     /// Intern `keyword` using the global interner.
     pub fn intern(keyword: &str) -> Self {
-        Self::intern_with(keyword, &GlobalArchInterner)
+        Self::intern_with(keyword, &GlobalInterner)
     }
 
-    /// Extract the CPU arch from a GNU CHOST triple using the global interner.
+    /// Extract the CPU arch from a GNU CHOST triple.
     ///
     /// Returns `None` only when `chost` is empty.
     pub fn from_chost(chost: &str) -> Option<Self> {
-        Self::from_chost_with(chost, &GlobalArchInterner)
+        Self::from_chost_with(chost, &GlobalInterner)
     }
 
-    /// Resolve to the Gentoo keyword string using the global interner.
+    /// Resolve to the Gentoo keyword string.
     pub fn as_str(&self) -> &str {
-        self.resolve_with(&GlobalArchInterner)
+        self.resolve_with(&GlobalInterner)
     }
 }
 
-impl fmt::Display for Arch<u32> {
+/// See [`Arch<GlobalInterner>`] — same methods using [`NoInterner`](crate::NoInterner).
+#[cfg(not(feature = "interner"))]
+impl Arch<NoInterner> {
+    /// Intern `keyword` inline (no deduplication).
+    pub fn intern(keyword: &str) -> Self {
+        Self::intern_with(keyword, &NoInterner)
+    }
+
+    /// Extract the CPU arch from a GNU CHOST triple.
+    ///
+    /// Returns `None` only when `chost` is empty.
+    pub fn from_chost(chost: &str) -> Option<Self> {
+        Self::from_chost_with(chost, &NoInterner)
+    }
+
+    /// Resolve to the Gentoo keyword string.
+    pub fn as_str(&self) -> &str {
+        self.resolve_with(&NoInterner)
+    }
+}
+
+impl<I: Interner + Default> fmt::Display for Arch<I> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.as_str())
+        f.write_str(self.resolve_with(&I::default()))
     }
 }
 
-impl PartialEq<str> for Arch<u32> {
+impl<I: Interner + Default> PartialEq<str> for Arch<I> {
     fn eq(&self, other: &str) -> bool {
-        self.as_str() == other
+        self.resolve_with(&I::default()) == other
     }
 }
 
-impl PartialEq<&str> for Arch<u32> {
+impl<I: Interner + Default> PartialEq<&str> for Arch<I> {
     fn eq(&self, other: &&str) -> bool {
-        self.as_str() == *other
+        self.resolve_with(&I::default()) == *other
     }
 }
 
-impl PartialEq<String> for Arch<u32> {
+impl<I: Interner + Default> PartialEq<String> for Arch<I> {
     fn eq(&self, other: &String) -> bool {
-        self.as_str() == other.as_str()
+        self.resolve_with(&I::default()) == other.as_str()
     }
 }
 
@@ -330,7 +368,7 @@ mod tests {
         assert!("invalid".parse::<KnownArch>().is_err());
     }
 
-    // ── Arch<u32> global convenience ─────────────────────────────────────────
+    // ── Arch convenience methods (DefaultInterner) ───────────────────────────
 
     #[test]
     fn arch_intern_known() {

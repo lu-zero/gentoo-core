@@ -23,7 +23,7 @@ Minimal. Any new dependency must be justified. Prefer standard library solutions
 
 Current dependencies:
 - `thiserror` — ergonomic error type derivation
-- `lasso` (multi-threaded feature) — string interning for the global `ArchInterner`
+- `lasso` (multi-threaded feature, optional) — string interning for `GlobalInterner`; gated behind the `interner` feature (default on)
 
 ## Coding Style
 

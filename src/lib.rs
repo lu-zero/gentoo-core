@@ -7,5 +7,7 @@ mod variant;
 
 pub use arch::{Arch, ExoticKey, KnownArch};
 pub use error::Error;
-pub use interner::{ArchInterner, GlobalArchInterner};
+#[cfg(feature = "interner")]
+pub use interner::GlobalInterner;
+pub use interner::{DefaultInterner, Interner, NoInterner};
 pub use variant::Variant;
