@@ -1,8 +1,8 @@
 [package]
 name = "gentoo-core"
 version = "0.1.0"
-edition = "2021"
-rust-version = "1.71.0"
+edition = "2024"
+rust-version = "1.88"
 authors = ["Luca Barbato <lu_zero@gentoo.org>"]
 license = "MIT"
 description = "Core Gentoo types and utilities for Rust applications"
@@ -11,6 +11,7 @@ keywords = ["gentoo", "core", "arch", "target"]
 categories = ["development-tools", "os::unix-apis"]
 
 [dependencies]
+lasso = { version = "0.7", features = ["multi-threaded"] }
 thiserror = "1.0"
 serde = { version = "1.0", features = ["derive"], optional = true }
 

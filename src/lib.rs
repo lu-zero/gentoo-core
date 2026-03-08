@@ -1,12 +1,11 @@
 //! Core Gentoo types and utilities
-//!
-//! This crate provides fundamental Gentoo-specific types that can be used
-//! across various Gentoo-related Rust projects.
 
 mod arch;
 mod error;
+mod interner;
 mod variant;
 
-pub use arch::Arch;
+pub use arch::{Arch, ExoticKey, KnownArch};
 pub use error::Error;
+pub use interner::{ArchInterner, GlobalArchInterner};
 pub use variant::Variant;
