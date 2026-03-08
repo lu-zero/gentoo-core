@@ -74,6 +74,46 @@ pub enum Arch {
     /// Corresponds to Gentoo keyword: `ppc64`
     /// Supports variants: powerpc64, ppc64
     Powerpc64,
+    /// MIPS 32-bit architecture
+    ///
+    /// Corresponds to Gentoo keyword: `mips`
+    Mips,
+    /// MIPS 64-bit architecture
+    ///
+    /// Corresponds to Gentoo keyword: `mips`
+    Mips64,
+    /// SPARC 32-bit architecture
+    ///
+    /// Corresponds to Gentoo keyword: `sparc`
+    Sparc,
+    /// SPARC 64-bit architecture
+    ///
+    /// Corresponds to Gentoo keyword: `sparc`
+    Sparc64,
+    /// IBM S/390x 64-bit architecture
+    ///
+    /// Corresponds to Gentoo keyword: `s390`
+    S390x,
+    /// Motorola 68k architecture
+    ///
+    /// Corresponds to Gentoo keyword: `m68k`
+    M68k,
+    /// LoongArch 64-bit architecture
+    ///
+    /// Corresponds to Gentoo keyword: `loong`
+    LoongArch64,
+    /// DEC Alpha architecture
+    ///
+    /// Corresponds to Gentoo keyword: `alpha`
+    Alpha,
+    /// HP PA-RISC architecture
+    ///
+    /// Corresponds to Gentoo keyword: `hppa`
+    Hppa,
+    /// Intel Itanium (IA-64) architecture
+    ///
+    /// Corresponds to Gentoo keyword: `ia64`
+    Ia64,
 }
 
 impl Arch {
@@ -89,6 +129,14 @@ impl Arch {
             Arch::Riscv32 | Arch::Riscv64 => "riscv",
             Arch::Powerpc => "ppc",
             Arch::Powerpc64 => "ppc64",
+            Arch::Mips | Arch::Mips64 => "mips",
+            Arch::Sparc | Arch::Sparc64 => "sparc",
+            Arch::S390x => "s390",
+            Arch::M68k => "m68k",
+            Arch::LoongArch64 => "loong",
+            Arch::Alpha => "alpha",
+            Arch::Hppa => "hppa",
+            Arch::Ia64 => "ia64",
         }
     }
 
@@ -114,6 +162,16 @@ impl Arch {
             // PowerPC variants
             "powerpc" | "ppc" => Ok(Arch::Powerpc),
             "powerpc64" | "ppc64" => Ok(Arch::Powerpc64),
+            "mips" => Ok(Arch::Mips),
+            "mips64" => Ok(Arch::Mips64),
+            "sparc" => Ok(Arch::Sparc),
+            "sparc64" => Ok(Arch::Sparc64),
+            "s390" | "s390x" => Ok(Arch::S390x),
+            "m68k" => Ok(Arch::M68k),
+            "loong" | "loongarch64" => Ok(Arch::LoongArch64),
+            "alpha" => Ok(Arch::Alpha),
+            "hppa" => Ok(Arch::Hppa),
+            "ia64" => Ok(Arch::Ia64),
             _ => Err(Error::ParseError(format!("Unknown architecture: {}", arch))),
         }
     }
@@ -121,8 +179,11 @@ impl Arch {
     /// Get the bitness (32 or 64) of the architecture
     pub fn bitness(&self) -> u32 {
         match self {
-            Arch::Arm | Arch::X86 | Arch::Riscv32 | Arch::Powerpc => 32,
-            Arch::AArch64 | Arch::X86_64 | Arch::Riscv64 | Arch::Powerpc64 => 64,
+            Arch::Arm | Arch::X86 | Arch::Riscv32 | Arch::Powerpc
+            | Arch::Mips | Arch::Sparc | Arch::M68k | Arch::Hppa => 32,
+            Arch::AArch64 | Arch::X86_64 | Arch::Riscv64 | Arch::Powerpc64
+            | Arch::Mips64 | Arch::Sparc64 | Arch::S390x | Arch::LoongArch64
+            | Arch::Alpha | Arch::Ia64 => 64,
         }
     }
 
@@ -143,6 +204,16 @@ impl fmt::Display for Arch {
             Arch::Riscv64 => "riscv64",
             Arch::Powerpc => "powerpc",
             Arch::Powerpc64 => "powerpc64",
+            Arch::Mips => "mips",
+            Arch::Mips64 => "mips64",
+            Arch::Sparc => "sparc",
+            Arch::Sparc64 => "sparc64",
+            Arch::S390x => "s390x",
+            Arch::M68k => "m68k",
+            Arch::LoongArch64 => "loongarch64",
+            Arch::Alpha => "alpha",
+            Arch::Hppa => "hppa",
+            Arch::Ia64 => "ia64",
         };
         write!(f, "{}", name)
     }
@@ -170,6 +241,16 @@ mod tests {
         assert_eq!(Arch::Riscv64.as_keyword(), "riscv");
         assert_eq!(Arch::Powerpc.as_keyword(), "ppc");
         assert_eq!(Arch::Powerpc64.as_keyword(), "ppc64");
+        assert_eq!(Arch::Mips.as_keyword(), "mips");
+        assert_eq!(Arch::Mips64.as_keyword(), "mips");
+        assert_eq!(Arch::Sparc.as_keyword(), "sparc");
+        assert_eq!(Arch::Sparc64.as_keyword(), "sparc");
+        assert_eq!(Arch::S390x.as_keyword(), "s390");
+        assert_eq!(Arch::M68k.as_keyword(), "m68k");
+        assert_eq!(Arch::LoongArch64.as_keyword(), "loong");
+        assert_eq!(Arch::Alpha.as_keyword(), "alpha");
+        assert_eq!(Arch::Hppa.as_keyword(), "hppa");
+        assert_eq!(Arch::Ia64.as_keyword(), "ia64");
     }
 
     #[test]
@@ -181,6 +262,18 @@ mod tests {
         assert!(Arch::parse("amd64").is_ok());
         assert!(Arch::parse("riscv64").is_ok());
         assert!(Arch::parse("powerpc64").is_ok());
+        assert!(Arch::parse("mips").is_ok());
+        assert!(Arch::parse("mips64").is_ok());
+        assert!(Arch::parse("sparc").is_ok());
+        assert!(Arch::parse("sparc64").is_ok());
+        assert!(Arch::parse("s390").is_ok());
+        assert!(Arch::parse("s390x").is_ok());
+        assert!(Arch::parse("m68k").is_ok());
+        assert!(Arch::parse("loong").is_ok());
+        assert!(Arch::parse("loongarch64").is_ok());
+        assert!(Arch::parse("alpha").is_ok());
+        assert!(Arch::parse("hppa").is_ok());
+        assert!(Arch::parse("ia64").is_ok());
 
         // Test aliases
         assert!(Arch::parse("armv7").is_ok());
@@ -207,6 +300,16 @@ mod tests {
         assert_eq!(Arch::Riscv64.bitness(), 64);
         assert_eq!(Arch::Powerpc.bitness(), 32);
         assert_eq!(Arch::Powerpc64.bitness(), 64);
+        assert_eq!(Arch::Mips.bitness(), 32);
+        assert_eq!(Arch::Mips64.bitness(), 64);
+        assert_eq!(Arch::Sparc.bitness(), 32);
+        assert_eq!(Arch::Sparc64.bitness(), 64);
+        assert_eq!(Arch::S390x.bitness(), 64);
+        assert_eq!(Arch::M68k.bitness(), 32);
+        assert_eq!(Arch::LoongArch64.bitness(), 64);
+        assert_eq!(Arch::Alpha.bitness(), 64);
+        assert_eq!(Arch::Hppa.bitness(), 32);
+        assert_eq!(Arch::Ia64.bitness(), 64);
     }
 
     #[test]
@@ -215,6 +318,16 @@ mod tests {
         assert_eq!(Arch::AArch64.to_string(), "aarch64");
         assert_eq!(Arch::X86.to_string(), "x86");
         assert_eq!(Arch::X86_64.to_string(), "x86_64");
+        assert_eq!(Arch::Mips.to_string(), "mips");
+        assert_eq!(Arch::Mips64.to_string(), "mips64");
+        assert_eq!(Arch::Sparc.to_string(), "sparc");
+        assert_eq!(Arch::Sparc64.to_string(), "sparc64");
+        assert_eq!(Arch::S390x.to_string(), "s390x");
+        assert_eq!(Arch::M68k.to_string(), "m68k");
+        assert_eq!(Arch::LoongArch64.to_string(), "loongarch64");
+        assert_eq!(Arch::Alpha.to_string(), "alpha");
+        assert_eq!(Arch::Hppa.to_string(), "hppa");
+        assert_eq!(Arch::Ia64.to_string(), "ia64");
     }
 
     #[test]
