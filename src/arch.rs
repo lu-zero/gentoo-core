@@ -22,7 +22,7 @@ use crate::interner::{ArchInterner, GlobalArchInterner};
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[cfg_attr(
-    feature = "serde_support",
+    feature = "serde",
     derive(serde::Serialize, serde::Deserialize)
 )]
 pub enum KnownArch {
