@@ -38,7 +38,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    println!("\nArch<u32> global interning:");
+    println!("\nArch global interning:");
     let exotic = Arch::intern("mymachine");
     println!(
         "  intern(\"mymachine\") -> {:?}  as_str={}",
