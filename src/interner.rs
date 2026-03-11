@@ -86,3 +86,66 @@ impl Interner for GlobalInterner {
 pub type DefaultInterner = GlobalInterner;
 #[cfg(not(feature = "interner"))]
 pub type DefaultInterner = NoInterner;
+
+// ── Interned<I> ─────────────────────────────────────────────────────────
+
+/// An interned string key parameterised by its [`Interner`] `I`.
+///
+/// The inner key is private. The string can be recovered via
+/// [`resolve_with`](Interned::resolve_with), or through serde when
+/// `I: Default` (both built-in interners implement `Default`).
+///
+/// `Interned<I>` is `Copy` when `<I as Interner>::Key: Copy`
+/// (e.g. `u32` with [`GlobalInterner`]) and `Clone`-only otherwise
+/// (e.g. `Box<str>` with [`NoInterner`]).
+pub struct Interned<I: Interner>(<I as Interner>::Key);
+
+// Manual impls to avoid spurious `I: Trait` bounds from `#[derive]`.
+impl<I: Interner> Clone for Interned<I> {
+    fn clone(&self) -> Self {
+        Self(self.0.clone())
+    }
+}
+impl<I: Interner> Copy for Interned<I> where <I as Interner>::Key: Copy {}
+impl<I: Interner> PartialEq for Interned<I> {
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+}
+impl<I: Interner> Eq for Interned<I> {}
+impl<I: Interner> std::hash::Hash for Interned<I> {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.0.hash(state);
+    }
+}
+impl<I: Interner> std::fmt::Debug for Interned<I> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("Interned").field(&self.0).finish()
+    }
+}
+
+impl<I: Interner> Interned<I> {
+    pub(crate) fn intern_with(s: &str, interner: &I) -> Self {
+        Self(interner.get_or_intern(s))
+    }
+
+    pub(crate) fn resolve_with<'a>(&'a self, interner: &'a I) -> &'a str {
+        interner.resolve(&self.0)
+    }
+}
+
+/// Serializes as the interned string value regardless of `I::Key`.
+#[cfg(feature = "serde")]
+impl<I: Interner + Default> serde::Serialize for Interned<I> {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(self.resolve_with(&I::default()))
+    }
+}
+
+#[cfg(feature = "serde")]
+impl<'de, I: Interner + Default> serde::Deserialize<'de> for Interned<I> {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let s = <String as serde::Deserialize<'de>>::deserialize(deserializer)?;
+        Ok(Self::intern_with(&s, &I::default()))
+    }
+}

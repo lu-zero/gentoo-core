@@ -9,5 +9,5 @@ pub use arch::{Arch, ExoticKey, KnownArch};
 pub use error::Error;
 #[cfg(feature = "interner")]
 pub use interner::GlobalInterner;
-pub use interner::{DefaultInterner, Interner, NoInterner};
+pub use interner::{DefaultInterner, Interned, Interner, NoInterner};
 pub use variant::Variant;
