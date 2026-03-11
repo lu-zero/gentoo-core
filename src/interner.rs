@@ -1,35 +1,36 @@
-//! String interning trait and implementations.
+//! String interning for efficient string storage.
 //!
-//! This module provides a flexible string interning system used throughout
-//! `gentoo-core` to efficiently store and compare string values.
+//! This module provides a flexible interning system for [`Arch`](crate::Arch)
+//! and [`Variant`](crate::Variant`), reducing memory usage when processing
+//! large numbers of architecture keywords (e.g., parsing an entire ebuild
+//! repository's `KEYWORDS` metadata).
 //!
-//! # Overview
+//! # Why Interning?
 //!
-//! The interning system consists of three main components:
+//! When the same string appears many times (like `"amd64"` in thousands of
+//! ebuilds), interning replaces each copy with a small integer key. All
+//! identical strings share one allocation, trading a small lookup cost for
+//! significant memory savings.
+//!
+//! # Components
 //!
 //! - [`Interner`]: A trait defining how strings are interned and resolved.
-//!   Implementations use static methods, allowing type-level configuration
-//!   without carrying runtime state.
-//! - [`Interned<I>`]: A type holding an interned string key, parameterized by
-//!   the interner type `I`. Uses `PhantomData<I>` to associate the key with
-//!   its interner without storing an interner reference.
-//! - [`DefaultInterner`]: A type alias to the default interner implementation
-//!   (`GlobalInterner` with the `interner` feature, `NoInterner` otherwise).
+//!   Implementations use static methods for type-level configuration.
+//! - [`Interned<I>`]: A type holding an interned string key. Uses `PhantomData<I>`
+//!   to associate the key with its interner without storing a reference.
+//! - [`DefaultInterner`]: The default interner based on feature flags.
 //!
-//! # Default Interner Selection
-//!
-//! The [`DefaultInterner`] type alias selects the appropriate interner based
-//! on feature flags:
+//! # Feature Selection
 //!
 //! | Feature | DefaultInterner | Key Type | Behavior |
 //! |---------|-----------------|----------|----------|
-//! | `interner` (default) | `GlobalInterner` | `u32` | Process-global deduplication via `lasso` |
-//! | no `interner` | `NoInterner` | `Box<str>` | No deduplication, each string is boxed |
+//! | `interner` (default) | `GlobalInterner` | `u32` | Process-global deduplication, `Copy` types |
+//! | no `interner` | `NoInterner` | `Box<str>` | No deduplication, `Clone` only |
 //!
 //! # Usage
 //!
-//! Types like [`Arch`](crate::Arch) and [`Variant`](crate::Variant) use type
-//! aliases with `DefaultInterner` for convenience:
+//! The default types [`Arch`](crate::Arch) and [`Variant`](crate::Variant) use
+//! `DefaultInterner` automatically:
 //!
 //! ```
 //! use gentoo_core::Arch;
@@ -48,9 +49,9 @@
 //! assert_eq!(arch.as_str(), "custom");
 //! ```
 //!
-//! # Implementing a Custom Interner
+//! # Custom Interners
 //!
-//! Implement [`Interner`] for a marker type to provide custom interning behavior:
+//! Implement [`Interner`] for a marker type to provide custom interning:
 //!
 //! ```ignore
 //! use gentoo_core::interner::Interner;
@@ -60,13 +61,8 @@
 //! impl Interner for MyInterner {
 //!     type Key = u64;
 //!
-//!     fn get_or_intern(s: &str) -> Self::Key {
-//!         // Custom interning logic
-//!     }
-//!
-//!     fn resolve<'a>(key: &'a Self::Key) -> &'a str {
-//!         // Custom resolution logic
-//!     }
+//!     fn get_or_intern(s: &str) -> Self::Key { /* ... */ }
+//!     fn resolve(key: &Self::Key) -> &str { /* ... */ }
 //! }
 //! ```
 

@@ -1,4 +1,19 @@
-//! Gentoo architecture representation and parsing.
+//! Gentoo architecture types.
+//!
+//! This module provides types for representing CPU architectures as they
+//! appear in Gentoo's keyword system:
+//!
+//! - [`KnownArch`]: The 18 architectures officially supported by Gentoo Linux.
+//!   Provides zero-cost representation and metadata like bitness.
+//! - [`Arch`]: A generic architecture type that can be either a known Gentoo
+//!   architecture or an overlay-defined keyword string.
+//!
+//! # Keywords vs Architecture Names
+//!
+//! Gentoo uses specific keyword strings in ebuilds (e.g., `~amd64`, `arm64`).
+//! `KnownArch` maps to these canonical keywords via [`KnownArch::as_keyword`].
+//! Some architectures share keywords (e.g., `riscv32` and `riscv64` both map
+//! to `"riscv"`), reflecting how Gentoo keywords group related architectures.
 
 use std::fmt;
 use std::hash::Hash;
@@ -7,10 +22,21 @@ use std::str::FromStr;
 use crate::Error;
 use crate::interner::{DefaultInterner, Interned, Interner};
 
-/// Well-known Gentoo CPU architecture variant.
+/// A CPU architecture officially supported by Gentoo Linux.
 ///
-/// Represents the 18 architectures supported by Gentoo Linux. Each variant
-/// maps to a Gentoo keyword string via [`KnownArch::as_keyword`].
+/// Represents the 18 architectures with stable or testing keywords in the
+/// Gentoo ebuild repository. Each variant maps to a canonical Gentoo keyword
+/// string via [`KnownArch::as_keyword`].
+///
+/// # Keyword Grouping
+///
+/// Some architectures share keywords due to Gentoo's keyword conventions:
+///
+/// | Architecture | Keyword | Notes |
+/// |--------------|---------|-------|
+/// | `Riscv32`, `Riscv64` | `"riscv"` | RISC-V variants share a keyword |
+/// | `Mips`, `Mips64` | `"mips"` | MIPS variants share a keyword |
+/// | `Sparc`, `Sparc64` | `"sparc"` | SPARC variants share a keyword |
 ///
 /// # Examples
 ///
@@ -19,6 +45,7 @@ use crate::interner::{DefaultInterner, Interned, Interner};
 ///
 /// let arch: KnownArch = "amd64".parse().unwrap();
 /// assert_eq!(arch.as_keyword(), "amd64");
+/// assert_eq!(arch.bitness(), 64);
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -153,7 +180,7 @@ impl FromStr for KnownArch {
     }
 }
 
-// ── Generic Arch<I> ──────────────────────────────────────────────────────────
+// ── Arch<I> ───────────────────────────────────────────────────────────────────
 
 /// Opaque key for an overlay-defined keyword string.
 ///
@@ -161,15 +188,36 @@ impl FromStr for KnownArch {
 /// See that type for the full API and serde behaviour.
 pub type ExoticKey<I> = Interned<I>;
 
-/// A Gentoo architecture, either well-known or overlay-defined.
+/// A Gentoo architecture keyword.
 ///
-/// `Known` maps to [`KnownArch`] (zero-cost, `Copy`).
-/// `Exotic` holds an [`ExoticKey<I>`] that must be resolved via the same
-/// [`Interner`] that created it.
+/// Represents either a well-known Gentoo architecture or an overlay-specific
+/// keyword string. This type is used when parsing ebuild `KEYWORDS` or other
+/// architecture references that may include non-standard values.
 ///
-/// With the `interner` feature (default) the key type defaults to `u32`
-/// (backed by [`GlobalInterner`](crate::interner::GlobalInterner)). Without the feature it defaults to
-/// `Box<str>` (backed by [`NoInterner`](crate::interner::NoInterner)).
+/// # Variants
+///
+/// - `Known(KnownArch)`: A recognized Gentoo architecture. Zero-cost and `Copy`.
+/// - `Exotic(ExoticKey<I>)`: An overlay-defined keyword stored via interning.
+///
+/// # Memory Efficiency
+///
+/// With the default `interner` feature, `Arch<GlobalInterner>` is `Copy` (4 bytes)
+/// and identical exotic strings share a single allocation. This is useful when
+/// processing large numbers of ebuilds.
+///
+/// # Examples
+///
+/// ```
+/// use gentoo_core::Arch;
+///
+/// // Known architectures are recognized automatically
+/// let known = Arch::intern("amd64");
+/// assert_eq!(known.as_str(), "amd64");
+///
+/// // Unknown strings become exotic keys
+/// let exotic = Arch::intern("my-custom-board");
+/// assert_eq!(exotic.as_str(), "my-custom-board");
+/// ```
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub enum Arch<I = DefaultInterner>
 where
