@@ -9,7 +9,7 @@ use crate::Error;
 use crate::interner::GlobalInterner;
 #[cfg(not(feature = "interner"))]
 use crate::interner::NoInterner;
-use crate::interner::{DefaultInterner, Interner};
+use crate::interner::{DefaultInterner, Interned, Interner};
 
 /// Well-known Gentoo CPU architecture variant.
 ///
@@ -161,22 +161,17 @@ impl FromStr for KnownArch {
 
 /// Opaque key for an overlay-defined keyword string.
 ///
-/// Wraps the interner's native key type `K`. The inner value is private so
-/// the interner stays an implementation detail; only the owning interner (via
-/// [`Arch::resolve_with`] or [`Arch::as_str`]) can turn it back into a string.
-///
-/// `ExoticKey<K>` is `Copy` when `K: Copy` (e.g. `u32` with [`GlobalInterner`])
-/// and `Clone`-only otherwise (e.g. `Box<str>` with [`NoInterner`](crate::NoInterner)).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct ExoticKey<K>(K);
+/// Type alias for [`Interned<I>`](crate::interner::Interned).
+/// See that type for the full API and serde behaviour.
+pub type ExoticKey<I> = Interned<I>;
 
 /// A Gentoo architecture keyword, either well-known or overlay-defined.
 ///
 /// `Known` maps to [`KnownArch`] (zero-cost, `Copy`).
-/// `Exotic` holds an [`ExoticKey<K>`] that must be resolved via the same
+/// `Exotic` holds an [`ExoticKey<I>`] that must be resolved via the same
 /// [`Interner`] that created it.
 ///
-/// With the `interner` feature (default) the key type `K` defaults to `u32`
+/// With the `interner` feature (default) the key type defaults to `u32`
 /// (backed by [`GlobalInterner`]). Without the feature it defaults to
 /// `Box<str>` (backed by [`NoInterner`](crate::NoInterner)).
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -186,8 +181,8 @@ where
 {
     /// A well-known Gentoo architecture keyword.
     Known(KnownArch),
-    /// An overlay-defined keyword string interned in `K`-keyed storage.
-    Exotic(ExoticKey<<I as Interner>::Key>),
+    /// An overlay-defined keyword string interned via `I`.
+    Exotic(ExoticKey<I>),
 }
 
 impl<I> Arch<I>
@@ -195,18 +190,18 @@ where
     I: Interner,
 {
     /// Intern `keyword` using `interner`.
-    pub fn intern_with(keyword: &str, interner: &I) -> Self {
+    pub(crate) fn intern_with(keyword: &str, interner: &I) -> Self {
         if let Ok(known) = KnownArch::parse(keyword) {
             Self::Known(known)
         } else {
-            Self::Exotic(ExoticKey(interner.get_or_intern(keyword)))
+            Self::Exotic(ExoticKey::intern_with(keyword, interner))
         }
     }
 
     /// Extract the CPU arch from a GNU CHOST triple using `interner`.
     ///
     /// Returns `None` only when `chost` is empty.
-    pub fn from_chost_with(chost: &str, interner: &I) -> Option<Self> {
+    pub(crate) fn from_chost_with(chost: &str, interner: &I) -> Option<Self> {
         let cpu = chost.split('-').next().filter(|s| !s.is_empty())?;
         Some(Self::intern_with(&normalize_chost_cpu(cpu), interner))
     }
@@ -215,10 +210,10 @@ where
     ///
     /// The returned lifetime is tied to both `self` (for [`KnownArch`] static
     /// strings) and to `interner`/`key` (for exotic strings).
-    pub fn resolve_with<'a>(&'a self, interner: &'a I) -> &'a str {
+    pub(crate) fn resolve_with<'a>(&'a self, interner: &'a I) -> &'a str {
         match self {
             Self::Known(arch) => arch.as_keyword(),
-            Self::Exotic(ExoticKey(key)) => interner.resolve(key),
+            Self::Exotic(key) => key.resolve_with(interner),
         }
     }
 }
@@ -227,8 +222,6 @@ where
 ///
 /// `intern` and `from_chost` live here (not on a generic `impl<I>`) so that
 /// `Arch::intern(...)` resolves unambiguously via the default type parameter.
-/// `as_str` must also be concrete because `resolve_with` borrows the interner
-/// and a generic `I::default()` temporary cannot outlive the call.
 #[cfg(feature = "interner")]
 impl Arch<GlobalInterner> {
     /// Intern `keyword` using the global interner.
@@ -334,6 +327,26 @@ fn normalize_chost_cpu(cpu: &str) -> String {
     s
 }
 
+// ── Serde impls ──────────────────────────────────────────────────────────────
+
+/// `Arch<I>` serializes as its keyword string (e.g. `"amd64"`, `"mymachine"`),
+/// regardless of how the underlying interner key is stored.
+#[cfg(feature = "serde")]
+impl<I: Interner + Default> serde::Serialize for Arch<I> {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(self.resolve_with(&I::default()))
+    }
+}
+
+/// Deserializes from the keyword string, interning via `I::default()`.
+#[cfg(feature = "serde")]
+impl<'de, I: Interner + Default> serde::Deserialize<'de> for Arch<I> {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let s = <String as serde::Deserialize<'de>>::deserialize(deserializer)?;
+        Ok(Self::intern_with(&s, &I::default()))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -427,4 +440,5 @@ mod tests {
     fn arch_empty_chost() {
         assert!(Arch::from_chost("").is_none());
     }
+
 }

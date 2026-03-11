@@ -4,10 +4,12 @@
 use crate::interner::GlobalInterner;
 #[cfg(not(feature = "interner"))]
 use crate::interner::NoInterner;
-use crate::interner::{DefaultInterner, Interner};
+use crate::interner::{DefaultInterner, Interned, Interner};
 use crate::{Arch, Error};
 use std::fmt;
 use std::str::FromStr;
+
+// ── Variant<I> ────────────────────────────────────────────────────────────────
 
 /// Gentoo variant configuration
 ///
@@ -38,7 +40,10 @@ use std::str::FromStr;
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(
     feature = "serde",
-    serde(bound = "I::Key: serde::Serialize + for<'de2> serde::Deserialize<'de2>")
+    serde(bound(
+        serialize = "I: Default",
+        deserialize = "I: Default"
+    ))
 )]
 pub struct Variant<I = DefaultInterner>
 where
@@ -46,32 +51,32 @@ where
 {
     /// Variant architecture.
     pub arch: Arch<I>,
-    /// Interned flavor/profile string key (e.g. `"openrc"`, `"systemd"`).
-    flavor: <I as Interner>::Key,
+    /// Interned flavor/profile string (e.g. `"openrc"`, `"systemd"`).
+    flavor: Interned<I>,
 }
 
 impl<I: Interner> Variant<I> {
     /// Create a variant from an already-interned arch and a flavor string.
-    pub fn new_with(arch: Arch<I>, flavor: &str, interner: &I) -> Self {
+    pub(crate) fn new_with(arch: Arch<I>, flavor: &str, interner: &I) -> Self {
         Self {
             arch,
-            flavor: interner.get_or_intern(flavor),
+            flavor: Interned::intern_with(flavor, interner),
         }
     }
 
     /// Parse arch + flavor strings using the given interner.
-    pub fn parse_with(arch: &str, flavor: &str, interner: &I) -> Result<Self, Error> {
+    pub(crate) fn parse_with(arch: &str, flavor: &str, interner: &I) -> Result<Self, Error> {
         let arch = Arch::intern_with(arch, interner);
         Ok(Self::new_with(arch, flavor, interner))
     }
 
     /// Resolve the flavor string using the given interner.
-    pub fn flavor_with<'a>(&'a self, interner: &'a I) -> &'a str {
-        interner.resolve(&self.flavor)
+    pub(crate) fn flavor_with<'a>(&'a self, interner: &'a I) -> &'a str {
+        self.flavor.resolve_with(interner)
     }
 
     /// The Gentoo keyword for this variant's architecture.
-    pub fn keyword_with<'a>(&'a self, interner: &'a I) -> &'a str {
+    pub(crate) fn keyword_with<'a>(&'a self, interner: &'a I) -> &'a str {
         self.arch.resolve_with(interner)
     }
 }
@@ -203,4 +208,5 @@ mod tests {
             "amd64-musl-hardened-openrc"
         );
     }
+
 }
