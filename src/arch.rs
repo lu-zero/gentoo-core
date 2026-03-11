@@ -250,6 +250,11 @@ impl<I: Interner> Arch<I> {
         }
     }
 
+    /// Current system architecture from [`std::env::consts::ARCH`].
+    pub fn current() -> Result<Self, crate::Error> {
+        KnownArch::current().map(Self::Known)
+    }
+
     /// Extract the CPU arch from a GNU CHOST triple using the interner `I`.
     ///
     /// Returns `None` only when `chost` is empty.
