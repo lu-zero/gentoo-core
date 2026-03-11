@@ -5,10 +5,6 @@ use std::hash::Hash;
 use std::str::FromStr;
 
 use crate::Error;
-#[cfg(feature = "interner")]
-use crate::interner::GlobalInterner;
-#[cfg(not(feature = "interner"))]
-use crate::interner::NoInterner;
 use crate::interner::{DefaultInterner, Interned, Interner};
 
 /// Well-known Gentoo CPU architecture variant.
@@ -157,7 +153,7 @@ impl FromStr for KnownArch {
     }
 }
 
-// ── Generic Arch<K> ──────────────────────────────────────────────────────────
+// ── Generic Arch<I> ──────────────────────────────────────────────────────────
 
 /// Opaque key for an overlay-defined keyword string.
 ///
@@ -165,16 +161,16 @@ impl FromStr for KnownArch {
 /// See that type for the full API and serde behaviour.
 pub type ExoticKey<I> = Interned<I>;
 
-/// A Gentoo architecture keyword, either well-known or overlay-defined.
+/// A Gentoo architecture, either well-known or overlay-defined.
 ///
 /// `Known` maps to [`KnownArch`] (zero-cost, `Copy`).
 /// `Exotic` holds an [`ExoticKey<I>`] that must be resolved via the same
 /// [`Interner`] that created it.
 ///
 /// With the `interner` feature (default) the key type defaults to `u32`
-/// (backed by [`GlobalInterner`]). Without the feature it defaults to
-/// `Box<str>` (backed by [`NoInterner`](crate::NoInterner)).
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+/// (backed by [`GlobalInterner`](crate::interner::GlobalInterner)). Without the feature it defaults to
+/// `Box<str>` (backed by [`NoInterner`](crate::interner::NoInterner)).
+#[derive(Debug, PartialEq, Eq, Hash)]
 pub enum Arch<I = DefaultInterner>
 where
     I: Interner,
@@ -185,105 +181,65 @@ where
     Exotic(ExoticKey<I>),
 }
 
-impl<I> Arch<I>
-where
-    I: Interner,
-{
-    /// Intern `keyword` using `interner`.
-    pub(crate) fn intern_with(keyword: &str, interner: &I) -> Self {
+impl<I: Interner> Clone for Arch<I> {
+    fn clone(&self) -> Self {
+        match self {
+            Self::Known(arch) => Self::Known(*arch),
+            Self::Exotic(key) => Self::Exotic(key.clone()),
+        }
+    }
+}
+
+impl<I: Interner> Copy for Arch<I> where Interned<I>: Copy {}
+
+impl<I: Interner> Arch<I> {
+    /// Intern `keyword` using the interner `I`.
+    pub fn intern(keyword: &str) -> Self {
         if let Ok(known) = KnownArch::parse(keyword) {
             Self::Known(known)
         } else {
-            Self::Exotic(ExoticKey::intern_with(keyword, interner))
+            Self::Exotic(ExoticKey::intern(keyword))
         }
     }
 
-    /// Extract the CPU arch from a GNU CHOST triple using `interner`.
+    /// Extract the CPU arch from a GNU CHOST triple using the interner `I`.
     ///
     /// Returns `None` only when `chost` is empty.
-    pub(crate) fn from_chost_with(chost: &str, interner: &I) -> Option<Self> {
+    pub fn from_chost(chost: &str) -> Option<Self> {
         let cpu = chost.split('-').next().filter(|s| !s.is_empty())?;
-        Some(Self::intern_with(&normalize_chost_cpu(cpu), interner))
+        Some(Self::intern(&normalize_chost_cpu(cpu)))
     }
 
-    /// Resolve to the Gentoo keyword string using `interner`.
-    ///
-    /// The returned lifetime is tied to both `self` (for [`KnownArch`] static
-    /// strings) and to `interner`/`key` (for exotic strings).
-    pub(crate) fn resolve_with<'a>(&'a self, interner: &'a I) -> &'a str {
+    /// Resolve to the Gentoo keyword string using the interner `I`.
+    pub fn as_str(&self) -> &str {
         match self {
             Self::Known(arch) => arch.as_keyword(),
-            Self::Exotic(key) => key.resolve_with(interner),
+            Self::Exotic(key) => key.resolve(),
         }
     }
 }
 
-/// Convenience methods on `Arch<DefaultInterner>`.
-///
-/// `intern` and `from_chost` live here (not on a generic `impl<I>`) so that
-/// `Arch::intern(...)` resolves unambiguously via the default type parameter.
-#[cfg(feature = "interner")]
-impl Arch<GlobalInterner> {
-    /// Intern `keyword` using the global interner.
-    pub fn intern(keyword: &str) -> Self {
-        Self::intern_with(keyword, &GlobalInterner)
-    }
-
-    /// Extract the CPU arch from a GNU CHOST triple.
-    ///
-    /// Returns `None` only when `chost` is empty.
-    pub fn from_chost(chost: &str) -> Option<Self> {
-        Self::from_chost_with(chost, &GlobalInterner)
-    }
-
-    /// Resolve to the Gentoo keyword string.
-    pub fn as_str(&self) -> &str {
-        self.resolve_with(&GlobalInterner)
-    }
-}
-
-/// See [`Arch<GlobalInterner>`] — same methods using [`NoInterner`](crate::NoInterner).
-#[cfg(not(feature = "interner"))]
-impl Arch<NoInterner> {
-    /// Intern `keyword` inline (no deduplication).
-    pub fn intern(keyword: &str) -> Self {
-        Self::intern_with(keyword, &NoInterner)
-    }
-
-    /// Extract the CPU arch from a GNU CHOST triple.
-    ///
-    /// Returns `None` only when `chost` is empty.
-    pub fn from_chost(chost: &str) -> Option<Self> {
-        Self::from_chost_with(chost, &NoInterner)
-    }
-
-    /// Resolve to the Gentoo keyword string.
-    pub fn as_str(&self) -> &str {
-        self.resolve_with(&NoInterner)
-    }
-}
-
-impl<I: Interner + Default> fmt::Display for Arch<I> {
+impl<I: Interner> fmt::Display for Arch<I> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.resolve_with(&I::default()))
+        f.write_str(self.as_str())
     }
 }
 
-impl<I: Interner + Default> PartialEq<str> for Arch<I> {
+impl<I: Interner> PartialEq<str> for Arch<I> {
     fn eq(&self, other: &str) -> bool {
-        self.resolve_with(&I::default()) == other
+        self.as_str() == other
     }
 }
 
-impl<I: Interner + Default> PartialEq<&str> for Arch<I> {
+impl<I: Interner> PartialEq<&str> for Arch<I> {
     fn eq(&self, other: &&str) -> bool {
-        self.resolve_with(&I::default()) == *other
+        self.as_str() == *other
     }
 }
 
-impl<I: Interner + Default> PartialEq<String> for Arch<I> {
+impl<I: Interner> PartialEq<String> for Arch<I> {
     fn eq(&self, other: &String) -> bool {
-        self.resolve_with(&I::default()) == other.as_str()
+        self.as_str() == other.as_str()
     }
 }
 
@@ -332,18 +288,18 @@ fn normalize_chost_cpu(cpu: &str) -> String {
 /// `Arch<I>` serializes as its keyword string (e.g. `"amd64"`, `"mymachine"`),
 /// regardless of how the underlying interner key is stored.
 #[cfg(feature = "serde")]
-impl<I: Interner + Default> serde::Serialize for Arch<I> {
+impl<I: Interner> serde::Serialize for Arch<I> {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        serializer.serialize_str(self.resolve_with(&I::default()))
+        serializer.serialize_str(self.as_str())
     }
 }
 
-/// Deserializes from the keyword string, interning via `I::default()`.
+/// Deserializes from the keyword string, interning via `I`.
 #[cfg(feature = "serde")]
-impl<'de, I: Interner + Default> serde::Deserialize<'de> for Arch<I> {
+impl<'de, I: Interner> serde::Deserialize<'de> for Arch<I> {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let s = <String as serde::Deserialize<'de>>::deserialize(deserializer)?;
-        Ok(Self::intern_with(&s, &I::default()))
+        Ok(Self::intern(&s))
     }
 }
 
@@ -385,15 +341,15 @@ mod tests {
 
     #[test]
     fn arch_intern_known() {
-        assert!(matches!(Arch::intern("amd64"), Arch::Known(_)));
-        assert!(matches!(Arch::intern("arm64"), Arch::Known(_)));
-        assert!(matches!(Arch::intern("loong"), Arch::Known(_)));
-        assert!(matches!(Arch::intern("hppa"), Arch::Known(_)));
+        assert!(matches!(<Arch>::intern("amd64"), Arch::Known(_)));
+        assert!(matches!(<Arch>::intern("arm64"), Arch::Known(_)));
+        assert!(matches!(<Arch>::intern("loong"), Arch::Known(_)));
+        assert!(matches!(<Arch>::intern("hppa"), Arch::Known(_)));
     }
 
     #[test]
     fn arch_intern_exotic() {
-        let a1 = Arch::intern("mymachine");
+        let a1: Arch = Arch::intern("mymachine");
         assert!(matches!(a1, Arch::Exotic(_)));
         assert_eq!(Arch::intern("mymachine"), a1); // same key
         assert_eq!(a1.as_str(), "mymachine");
@@ -409,7 +365,7 @@ mod tests {
             ("s390x-linux-gnu", "s390"),
         ];
         for (chost, expected) in cases {
-            let arch = Arch::from_chost(chost).unwrap();
+            let arch: Arch = Arch::from_chost(chost).unwrap();
             assert_eq!(arch.as_str(), expected, "chost={chost}");
             assert!(
                 matches!(arch, Arch::Known(_)),
@@ -429,7 +385,7 @@ mod tests {
         ];
         for (chost, expected) in cases {
             assert_eq!(
-                Arch::from_chost(chost).unwrap().as_str(),
+                <Arch>::from_chost(chost).unwrap().as_str(),
                 expected,
                 "chost={chost}"
             );
@@ -438,7 +394,7 @@ mod tests {
 
     #[test]
     fn arch_empty_chost() {
-        assert!(Arch::from_chost("").is_none());
+        assert!(<Arch>::from_chost("").is_none());
     }
 
     // ── Serde roundtrip ──────────────────────────────────────────────────────
@@ -449,14 +405,14 @@ mod tests {
 
         #[test]
         fn arch_known_serializes_as_keyword() {
-            let arch = Arch::intern("amd64");
+            let arch: Arch = Arch::intern("amd64");
             let json = serde_json::to_string(&arch).unwrap();
             assert_eq!(json, r#""amd64""#);
         }
 
         #[test]
         fn arch_exotic_serializes_as_string() {
-            let arch = Arch::intern("mymachine");
+            let arch: Arch = Arch::intern("mymachine");
             let json = serde_json::to_string(&arch).unwrap();
             assert_eq!(json, r#""mymachine""#);
         }
@@ -481,7 +437,6 @@ mod tests {
 
         #[test]
         fn arch_deserialize_known_from_alias() {
-            // Deserializing an alias should produce the canonical Known variant.
             let restored: Arch = serde_json::from_str(r#""x86_64""#).unwrap();
             assert_eq!(restored, Arch::intern("amd64"));
         }
