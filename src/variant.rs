@@ -1,4 +1,33 @@
-//! Gentoo variant configuration
+//! Gentoo release media variants.
+//!
+//! This module provides [`Variant`], a type representing the `{arch}-{tag}`
+//! format used for Gentoo release media (stage3 tarballs, ISO images, and
+//! profile selections).
+//!
+//! # Format
+//!
+//! Variants combine an architecture with a tag string:
+//!
+//! ```text
+//! {arch}-{tag}
+//! ```
+//!
+//! The tag typically encodes the init system and profile variant:
+//!
+//! - `"openrc"` — OpenRC init system
+//! - `"systemd"` — systemd init system
+//! - `"musl"` — musl libc
+//! - `"musl-hardened-openrc"` — combined musl and hardened profile
+//!
+//! # Examples
+//!
+//! ```
+//! use gentoo_core::Variant;
+//!
+//! let variant: Variant = "amd64-openrc".parse().unwrap();
+//! assert_eq!(variant.keyword(), "amd64");
+//! assert_eq!(variant.flavor(), "openrc");
+//! ```
 
 use crate::arch::Arch;
 use crate::error::Error;
@@ -6,25 +35,23 @@ use crate::interner::{DefaultInterner, Interned, Interner};
 use std::fmt;
 use std::str::FromStr;
 
-// ── Variant<I> ────────────────────────────────────────────────────────────────
-
-/// Gentoo variant configuration
+/// A Gentoo release media variant.
 ///
-/// A variant represents a specific Gentoo system configuration combining
-/// an architecture with a flavor/profile. This corresponds to Gentoo's
-/// concept of system profiles and build configurations.
+/// Represents the `{arch}-{tag}` format used for stage3 tarballs, ISO images,
+/// and profile selections. The tag encodes the init system and profile variant
+/// (e.g., `"openrc"`, `"systemd"`, `"musl-hardened-openrc"`).
 ///
-/// `Variant<I>` is generic over an [`Interner`] type parameter that controls
-/// how both the arch keyword and flavor string are stored.  The default,
-/// [`DefaultInterner`], uses the global interner (with the `interner` feature)
-/// or inline heap allocation without it.
+/// # Memory Efficiency
+///
+/// With the default `interner` feature, `Variant<GlobalInterner>` is `Copy`
+/// (8 bytes) and identical strings share a single allocation. This is useful
+/// when processing many variant references.
 ///
 /// # Examples
 ///
 /// ```
 /// use gentoo_core::{Variant, Arch, KnownArch};
 ///
-/// // Parse from string format (arch-flavor)
 /// let variant: Variant = "arm64-openrc".parse().unwrap();
 /// assert!(matches!(variant.arch, Arch::Known(KnownArch::AArch64)));
 /// assert_eq!(variant.flavor(), "openrc");
