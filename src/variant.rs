@@ -209,4 +209,47 @@ mod tests {
         );
     }
 
+    // ── Serde roundtrip ──────────────────────────────────────────────────────
+
+    #[cfg(feature = "serde")]
+    mod serde {
+        use super::*;
+
+        #[test]
+        fn variant_known_arch_serializes_as_strings() {
+            let variant: Variant = "amd64-systemd".parse().unwrap();
+            let json = serde_json::to_string(&variant).unwrap();
+            assert_eq!(json, r#"{"arch":"amd64","flavor":"systemd"}"#);
+        }
+
+        #[test]
+        fn variant_known_arch_roundtrip() {
+            let original: Variant = "amd64-systemd".parse().unwrap();
+            let json = serde_json::to_string(&original).unwrap();
+            let restored: Variant = serde_json::from_str(&json).unwrap();
+            assert_eq!(original, restored);
+            assert_eq!(restored.flavor(), "systemd");
+        }
+
+        #[test]
+        fn variant_exotic_arch_roundtrip() {
+            let original: Variant = "mymachine-openrc".parse().unwrap();
+            let json = serde_json::to_string(&original).unwrap();
+            assert_eq!(json, r#"{"arch":"mymachine","flavor":"openrc"}"#);
+            let restored: Variant = serde_json::from_str(&json).unwrap();
+            assert_eq!(original, restored);
+        }
+
+        #[test]
+        fn variant_complex_flavor_roundtrip() {
+            let original: Variant = "amd64-musl-hardened-openrc".parse().unwrap();
+            let json = serde_json::to_string(&original).unwrap();
+            assert_eq!(
+                json,
+                r#"{"arch":"amd64","flavor":"musl-hardened-openrc"}"#
+            );
+            let restored: Variant = serde_json::from_str(&json).unwrap();
+            assert_eq!(original, restored);
+        }
+    }
 }

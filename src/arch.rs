@@ -441,4 +441,49 @@ mod tests {
         assert!(Arch::from_chost("").is_none());
     }
 
+    // ── Serde roundtrip ──────────────────────────────────────────────────────
+
+    #[cfg(feature = "serde")]
+    mod serde {
+        use super::*;
+
+        #[test]
+        fn arch_known_serializes_as_keyword() {
+            let arch = Arch::intern("amd64");
+            let json = serde_json::to_string(&arch).unwrap();
+            assert_eq!(json, r#""amd64""#);
+        }
+
+        #[test]
+        fn arch_exotic_serializes_as_string() {
+            let arch = Arch::intern("mymachine");
+            let json = serde_json::to_string(&arch).unwrap();
+            assert_eq!(json, r#""mymachine""#);
+        }
+
+        #[test]
+        fn arch_known_roundtrip() {
+            let original = Arch::intern("arm64");
+            let json = serde_json::to_string(&original).unwrap();
+            let restored: Arch = serde_json::from_str(&json).unwrap();
+            assert_eq!(original, restored);
+            assert!(matches!(restored, Arch::Known(KnownArch::AArch64)));
+        }
+
+        #[test]
+        fn arch_exotic_roundtrip() {
+            let original = Arch::intern("mymachine");
+            let json = serde_json::to_string(&original).unwrap();
+            let restored: Arch = serde_json::from_str(&json).unwrap();
+            assert_eq!(original, restored);
+            assert!(matches!(restored, Arch::Exotic(_)));
+        }
+
+        #[test]
+        fn arch_deserialize_known_from_alias() {
+            // Deserializing an alias should produce the canonical Known variant.
+            let restored: Arch = serde_json::from_str(r#""x86_64""#).unwrap();
+            assert_eq!(restored, Arch::intern("amd64"));
+        }
+    }
 }
