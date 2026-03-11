@@ -1,6 +1,6 @@
 //! Gentoo Architecture Demo
 //!
-//! Demonstrates the KnownArch enumeration and Arch<K> typed keyword.
+//! Demonstrates the KnownArch enumeration and Arch typed keyword.
 
 use gentoo_core::{Arch, KnownArch};
 
@@ -52,6 +52,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         known.as_str()
     );
 
+    println!("\nArch::from_str:");
+    let arch: Arch = "arm64".parse()?;
+    println!(
+        "  \"arm64\".parse() -> {:?}  as_str={}",
+        arch,
+        arch.as_str()
+    );
+    let arch: Arch = "custom-board".parse()?;
+    println!(
+        "  \"custom-board\".parse() -> {:?}  as_str={}",
+        arch,
+        arch.as_str()
+    );
+
     println!("\nCHOST parsing:");
     for chost in [
         "x86_64-pc-linux-gnu",
@@ -64,15 +78,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     println!("\nCurrent system architecture:");
-    match KnownArch::current() {
-        Ok(arch) => println!(
-            "  {} (keyword: {}, bitness: {})",
-            arch,
-            arch.as_keyword(),
-            arch.bitness()
-        ),
-        Err(e) => println!("  Error: {e}"),
-    }
+    let arch = Arch::current();
+    println!("  {} (keyword: {})", arch, arch.as_str());
 
     Ok(())
 }

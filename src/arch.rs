@@ -251,8 +251,10 @@ impl<I: Interner> Arch<I> {
     }
 
     /// Current system architecture from [`std::env::consts::ARCH`].
-    pub fn current() -> Result<Self, crate::Error> {
-        KnownArch::current().map(Self::Known)
+    ///
+    /// Returns `Known` for recognized architectures, `Exotic` otherwise.
+    pub fn current() -> Self {
+        Self::intern(std::env::consts::ARCH)
     }
 
     /// Extract the CPU arch from a GNU CHOST triple using the interner `I`.
@@ -297,7 +299,7 @@ impl<I: Interner> PartialEq<String> for Arch<I> {
 }
 
 impl<I: Interner> FromStr for Arch<I> {
-    type Err = crate::Error;
+    type Err = std::convert::Infallible;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match KnownArch::from_str(s) {
@@ -459,6 +461,24 @@ mod tests {
     #[test]
     fn arch_empty_chost() {
         assert!(<Arch>::from_chost("").is_none());
+    }
+
+    #[test]
+    fn arch_from_str_known() {
+        let arch: Arch = "amd64".parse().unwrap();
+        assert!(matches!(arch, Arch::Known(KnownArch::X86_64)));
+        assert_eq!(arch.as_str(), "amd64");
+
+        let arch: Arch = "arm64".parse().unwrap();
+        assert!(matches!(arch, Arch::Known(KnownArch::AArch64)));
+        assert_eq!(arch.as_str(), "arm64");
+    }
+
+    #[test]
+    fn arch_from_str_exotic() {
+        let arch: Arch = "mymachine".parse().unwrap();
+        assert!(matches!(arch, Arch::Exotic(_)));
+        assert_eq!(arch.as_str(), "mymachine");
     }
 
     // ── Serde roundtrip ──────────────────────────────────────────────────────
