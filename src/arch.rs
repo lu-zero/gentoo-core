@@ -296,6 +296,17 @@ impl<I: Interner> PartialEq<String> for Arch<I> {
     }
 }
 
+impl<I: Interner> FromStr for Arch<I> {
+    type Err = crate::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match KnownArch::from_str(s) {
+            Ok(known) => Ok(Self::Known(known)),
+            Err(_) => Ok(Self::Exotic(ExoticKey::intern(s))),
+        }
+    }
+}
+
 /// Normalise the CPU field of a GNU CHOST triple before matching known arches.
 fn normalize_chost_cpu(cpu: &str) -> String {
     let s = cpu.to_lowercase();
