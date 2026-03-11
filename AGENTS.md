@@ -12,8 +12,18 @@ cargo run --example arch          # Smoke-test the example
 
 ## Architecture
 
-- Core types in individual modules (e.g. `arch.rs`, `interner.rs`, `variant.rs`, `error.rs`)
-- Modules are private (`mod`, not `pub mod`); public API is flat re-exports in `lib.rs`
+- Core types in individual modules (`arch.rs`, `interner.rs`, `variant.rs`, `error.rs`)
+- Modules `arch`, `interner`, and `variant` are public for generic type access
+- Main types are re-exported as type aliases in `lib.rs`:
+  - `Arch` = `arch::Arch<interner::DefaultInterner>`
+  - `Variant` = `variant::Variant<interner::DefaultInterner>`
+  - `KnownArch` = `arch::KnownArch`
+  - `Error` = `error::Error`
+- Secondary types (for custom interner configurations) accessible via pub modules:
+  - `arch::Arch<I>` for custom interner generic
+  - `interner::Interner`, `Interned<I>`, `GlobalInterner`, `NoInterner`
+  - `variant::Variant<I>` for custom interner generic
+- The [`Interner`] trait uses static methods; types using it carry `PhantomData<I>`
 - Focus on minimal, reusable Gentoo-specific functionality
 - Types and their methods are `pub` when part of the public API
 

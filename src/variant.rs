@@ -1,11 +1,8 @@
 //! Gentoo variant configuration
 
-#[cfg(feature = "interner")]
-use crate::interner::GlobalInterner;
-#[cfg(not(feature = "interner"))]
-use crate::interner::NoInterner;
+use crate::arch::Arch;
+use crate::error::Error;
 use crate::interner::{DefaultInterner, Interned, Interner};
-use crate::{Arch, Error};
 use std::fmt;
 use std::str::FromStr;
 
@@ -31,20 +28,10 @@ use std::str::FromStr;
 /// let variant: Variant = "arm64-openrc".parse().unwrap();
 /// assert!(matches!(variant.arch, Arch::Known(KnownArch::AArch64)));
 /// assert_eq!(variant.flavor(), "openrc");
-///
-/// // Create programmatically
-/// let variant = Variant::new(Arch::Known(KnownArch::X86_64), "systemd");
-/// assert_eq!(variant.to_string(), "amd64-systemd");
 /// ```
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(
-    feature = "serde",
-    serde(bound(
-        serialize = "I: Default",
-        deserialize = "I: Default"
-    ))
-)]
+#[cfg_attr(feature = "serde", serde(bound = ""))]
 pub struct Variant<I = DefaultInterner>
 where
     I: Interner,
@@ -55,91 +42,50 @@ where
     flavor: Interned<I>,
 }
 
+impl<I: Interner> Clone for Variant<I> {
+    fn clone(&self) -> Self {
+        Self {
+            arch: self.arch.clone(),
+            flavor: self.flavor.clone(),
+        }
+    }
+}
+
+impl<I: Interner> Copy for Variant<I> where Interned<I>: Copy {}
+
 impl<I: Interner> Variant<I> {
-    /// Create a variant from an already-interned arch and a flavor string.
-    pub(crate) fn new_with(arch: Arch<I>, flavor: &str, interner: &I) -> Self {
+    /// Create a variant from an arch and a flavor string using interner `I`.
+    pub(crate) fn new(arch: Arch<I>, flavor: &str) -> Self {
         Self {
             arch,
-            flavor: Interned::intern_with(flavor, interner),
+            flavor: Interned::intern(flavor),
         }
     }
 
-    /// Parse arch + flavor strings using the given interner.
-    pub(crate) fn parse_with(arch: &str, flavor: &str, interner: &I) -> Result<Self, Error> {
-        let arch = Arch::intern_with(arch, interner);
-        Ok(Self::new_with(arch, flavor, interner))
-    }
-
-    /// Resolve the flavor string using the given interner.
-    pub(crate) fn flavor_with<'a>(&'a self, interner: &'a I) -> &'a str {
-        self.flavor.resolve_with(interner)
-    }
-
-    /// The Gentoo keyword for this variant's architecture.
-    pub(crate) fn keyword_with<'a>(&'a self, interner: &'a I) -> &'a str {
-        self.arch.resolve_with(interner)
-    }
-}
-
-#[cfg(feature = "interner")]
-impl Variant<GlobalInterner> {
-    /// Create a variant using the global interner.
-    pub fn new(arch: Arch<GlobalInterner>, flavor: &str) -> Self {
-        Self::new_with(arch, flavor, &GlobalInterner)
-    }
-
-    /// Parse arch + flavor strings using the global interner.
+    /// Parse arch + flavor strings using the interner `I`.
     pub fn parse(arch: &str, flavor: &str) -> Result<Self, Error> {
-        Self::parse_with(arch, flavor, &GlobalInterner)
+        let arch = Arch::intern(arch);
+        Ok(Self::new(arch, flavor))
     }
 
-    /// Resolve the flavor string using the global interner.
+    /// Resolve the flavor string using the interner `I`.
     pub fn flavor(&self) -> &str {
-        self.flavor_with(&GlobalInterner)
+        self.flavor.resolve()
     }
 
     /// The Gentoo keyword for this variant's architecture.
     pub fn keyword(&self) -> &str {
-        self.keyword_with(&GlobalInterner)
+        self.arch.as_str()
     }
 }
 
-#[cfg(not(feature = "interner"))]
-impl Variant<NoInterner> {
-    /// Create a variant using inline allocation.
-    pub fn new(arch: Arch<NoInterner>, flavor: &str) -> Self {
-        Self::new_with(arch, flavor, &NoInterner)
-    }
-
-    /// Parse arch + flavor strings using inline allocation.
-    pub fn parse(arch: &str, flavor: &str) -> Result<Self, Error> {
-        Self::parse_with(arch, flavor, &NoInterner)
-    }
-
-    /// Return the flavor string.
-    pub fn flavor(&self) -> &str {
-        self.flavor_with(&NoInterner)
-    }
-
-    /// The Gentoo keyword for this variant's architecture.
-    pub fn keyword(&self) -> &str {
-        self.keyword_with(&NoInterner)
-    }
-}
-
-impl<I: Interner + Default> fmt::Display for Variant<I> {
+impl<I: Interner> fmt::Display for Variant<I> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let interner = I::default();
-        write!(
-            f,
-            "{}-{}",
-            self.arch.resolve_with(&interner),
-            self.flavor_with(&interner)
-        )
+        write!(f, "{}-{}", self.arch.as_str(), self.flavor())
     }
 }
 
-impl<I: Interner + Default> FromStr for Variant<I> {
+impl<I: Interner> FromStr for Variant<I> {
     type Err = Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -148,18 +94,18 @@ impl<I: Interner + Default> FromStr for Variant<I> {
                 "Invalid variant format: expected arch-flavor, got '{s}'"
             ))
         })?;
-        Self::parse_with(arch_str, flavor_str, &I::default())
+        Self::parse(arch_str, flavor_str)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::KnownArch;
+    use crate::arch::KnownArch;
 
     #[test]
     fn test_variant_creation() {
-        let variant = Variant::new(Arch::Known(KnownArch::X86_64), "systemd");
+        let variant: Variant = Variant::new(Arch::Known(KnownArch::X86_64), "systemd");
         assert_eq!(variant.arch, Arch::Known(KnownArch::X86_64));
         assert_eq!(variant.flavor(), "systemd");
     }
@@ -167,21 +113,21 @@ mod tests {
     #[test]
     fn test_variant_keyword() {
         assert_eq!(
-            Variant::new(Arch::Known(KnownArch::AArch64), "systemd").keyword(),
+            Variant::new(<Arch>::Known(KnownArch::AArch64), "systemd").keyword(),
             "arm64"
         );
         assert_eq!(
-            Variant::new(Arch::Known(KnownArch::X86), "openrc").keyword(),
+            Variant::new(<Arch>::Known(KnownArch::X86), "openrc").keyword(),
             "x86"
         );
     }
 
     #[test]
     fn test_variant_parsing() {
-        let variant = Variant::parse("amd64", "systemd").unwrap();
+        let variant: Variant = Variant::parse("amd64", "systemd").unwrap();
         assert_eq!(variant.arch, Arch::Known(KnownArch::X86_64));
 
-        let variant = Variant::parse("arm", "openrc").unwrap();
+        let variant: Variant = Variant::parse("arm", "openrc").unwrap();
         assert_eq!(variant.arch, Arch::Known(KnownArch::Arm));
     }
 
@@ -200,11 +146,11 @@ mod tests {
     #[test]
     fn test_display() {
         assert_eq!(
-            Variant::new(Arch::Known(KnownArch::AArch64), "openrc").to_string(),
+            Variant::new(<Arch>::Known(KnownArch::AArch64), "openrc").to_string(),
             "arm64-openrc"
         );
         assert_eq!(
-            Variant::new(Arch::Known(KnownArch::X86_64), "musl-hardened-openrc").to_string(),
+            Variant::new(<Arch>::Known(KnownArch::X86_64), "musl-hardened-openrc").to_string(),
             "amd64-musl-hardened-openrc"
         );
     }
@@ -244,10 +190,7 @@ mod tests {
         fn variant_complex_flavor_roundtrip() {
             let original: Variant = "amd64-musl-hardened-openrc".parse().unwrap();
             let json = serde_json::to_string(&original).unwrap();
-            assert_eq!(
-                json,
-                r#"{"arch":"amd64","flavor":"musl-hardened-openrc"}"#
-            );
+            assert_eq!(json, r#"{"arch":"amd64","flavor":"musl-hardened-openrc"}"#);
             let restored: Variant = serde_json::from_str(&json).unwrap();
             assert_eq!(original, restored);
         }
