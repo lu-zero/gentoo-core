@@ -35,21 +35,29 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-gentoo-core = "0.1"
+gentoo-core = "0.3"
 ```
 
 ## Usage
 
 ```rust
-use gentoo_core::{Arch, Variant};
+use gentoo_core::{Arch, Variant, KnownArch};
 
-// Parse an architecture
-let arch = Arch::parse("amd64").unwrap();
+// Parse a known architecture
+let known = KnownArch::parse("amd64").unwrap();
+println!("Known: {} (keyword: {}, bitness: {})", known, known.as_keyword(), known.bitness());
+
+// Intern an architecture (known or exotic)
+let arch = Arch::intern("amd64");
 println!("Arch: {} (keyword: {})", arch, arch.as_keyword());
 
-// Create a variant configuration
-let variant = Variant::new(arch, "systemd".to_string());
-println!("Variant: {:?}", variant);
+// Exotic architectures work the same way
+let exotic = Arch::intern("my-custom-board");
+println!("Exotic: {} (keyword: {})", exotic, exotic.as_keyword());
+
+// Parse a variant
+let variant: Variant = "amd64-systemd".parse().unwrap();
+println!("Variant: {} (arch: {}, flavor: {})", variant, variant.keyword(), variant.flavor());
 ```
 
 ## Examples
@@ -57,7 +65,7 @@ println!("Variant: {:?}", variant);
 Run the included examples:
 
 ```bash
-cargo run --example arch_demo
+cargo run --example arch
 ```
 
 ## Contributing
