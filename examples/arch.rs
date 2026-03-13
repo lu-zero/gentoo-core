@@ -41,29 +41,29 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("\nArch global interning:");
     let exotic = Arch::intern("mymachine");
     println!(
-        "  intern(\"mymachine\") -> {:?}  as_str={}",
+        "  intern(\"mymachine\") -> {:?}  as_keyword={}",
         exotic,
-        exotic.as_str()
+        exotic.as_keyword()
     );
     let known = Arch::intern("amd64");
     println!(
-        "  intern(\"amd64\")     -> {:?}  as_str={}",
+        "  intern(\"amd64\")     -> {:?}  as_keyword={}",
         known,
-        known.as_str()
+        known.as_keyword()
     );
 
     println!("\nArch::from_str:");
     let arch: Arch = "arm64".parse()?;
     println!(
-        "  \"arm64\".parse() -> {:?}  as_str={}",
+        "  \"arm64\".parse() -> {:?}  as_keyword={}",
         arch,
-        arch.as_str()
+        arch.as_keyword()
     );
     let arch: Arch = "custom-board".parse()?;
     println!(
-        "  \"custom-board\".parse() -> {:?}  as_str={}",
+        "  \"custom-board\".parse() -> {:?}  as_keyword={}",
         arch,
-        arch.as_str()
+        arch.as_keyword()
     );
 
     println!("\nCHOST parsing:");
@@ -73,13 +73,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "powerpc64le-unknown-linux-gnu",
     ] {
         if let Some(arch) = Arch::from_chost(chost) {
-            println!("  {} -> {}", chost, arch.as_str());
+            println!("  {} -> {}", chost, arch.as_keyword());
         }
     }
 
     println!("\nCurrent system architecture:");
     let arch = Arch::current();
-    println!("  {} (keyword: {})", arch, arch.as_str());
+    println!("  {} (keyword: {})", arch, arch.as_keyword());
 
     Ok(())
 }
