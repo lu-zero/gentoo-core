@@ -29,7 +29,10 @@
 
 pub mod arch;
 mod error;
-pub mod interner;
+pub mod interner {
+    //! String interning for efficient string storage.
+    pub use gentoo_interner::*;
+}
 pub mod variant;
 
 pub use error::Error;

@@ -31,7 +31,7 @@
 
 use crate::arch::Arch;
 use crate::error::Error;
-use crate::interner::{DefaultInterner, Interned, Interner};
+use gentoo_interner::{DefaultInterner, Interned, Interner};
 use std::fmt;
 use std::str::FromStr;
 

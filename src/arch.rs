@@ -20,7 +20,7 @@ use std::hash::Hash;
 use std::str::FromStr;
 
 use crate::Error;
-use crate::interner::{DefaultInterner, Interned, Interner};
+use gentoo_interner::{DefaultInterner, Interned, Interner};
 
 /// A CPU architecture officially supported by Gentoo Linux.
 ///
@@ -271,6 +271,14 @@ impl<I: Interner> Arch<I> {
             Self::Known(arch) => arch.as_keyword(),
             Self::Exotic(key) => key.resolve(),
         }
+    }
+
+    /// The Gentoo keyword for this architecture.
+    ///
+    /// For known architectures, returns the canonical keyword (e.g., `"amd64"`).
+    /// For exotic architectures, returns the interned string directly.
+    pub fn as_keyword(&self) -> &str {
+        self.as_str()
     }
 }
 
