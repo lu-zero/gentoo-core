@@ -21,6 +21,8 @@ serde_json = "1.0"
 [features]
 default = ["interner"]
 interner = ["gentoo-interner/interner"]
+lasso = ["gentoo-interner/lasso"]
+symbol-table = ["gentoo-interner/symbol-table"]
 serde = ["dep:serde", "gentoo-interner/serde"]
 
 [profile.release]
